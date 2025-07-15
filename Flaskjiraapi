@@ -1,20 +1,63 @@
-# app.py
+# flask_app.py
 from flask import Flask, request, jsonify
+from uuid import uuid4
+
+# 🔽 import the ready-to-go agent
+from adk_agent_init import agent            # `agent.run(query, **kwargs)` available
 
 app = Flask(__name__)
 
+# ---- OPTIONAL: simple in-memory session store --------------
+session_ctx = {}                            # {session_id: <your_state>}
+# -------------------------------------------------------------
+
+def ensure_session(session_id:str|None):
+    """
+    Return (session_id, context_dict) for this call.
+    Creates a new session if `session_id` is None / unknown.
+    """
+    if not session_id or session_id not in session_ctx:
+        session_id = str(uuid4())
+        session_ctx[session_id] = {"history": []}
+    return session_id, session_ctx[session_id]
+
 @app.route("/query", methods=["POST"])
-def query():
-    data = request.json
-    query_text = data.get("query", "")
-    return jsonify({
-        "response_summary": {
-            "title": f"Summary for {query_text}",
-            "key_points": ["Key 1", "Key 2"],
-            "confidence_score": 0.95
-        },
-        "raw_response": f"Full response for: {query_text}"
-    })
+def query_route():
+    payload = request.get_json(silent=True) or {}
+    query      = payload.get("query", "")
+    session_id = payload.get("session_id")
+
+    session_id, ctx = ensure_session(session_id)
+    ctx["history"].append({"user": query})
+
+    try:
+        # ---------- CALL YOUR AGENT -----------------
+        #
+        # If agent.run is synchronous:
+        result = agent.run(query, session_context=ctx)
+        #
+        # If agent.run is *async*, use:
+        #   import asyncio, inspect
+        #   if inspect.iscoroutinefunction(agent.run):
+        #       result = asyncio.run(agent.run(query, session_context=ctx))
+        # --------------------------------------------
+
+        ctx["history"].append({"agent": result.get("raw", "")})
+
+        return jsonify(
+            {
+                "session_id": session_id,
+                "response_summary": result.get("summary"),
+                "raw_response": result.get("raw"),
+                "history": ctx["history"]
+            }
+        )
+
+    except Exception as e:
+        # Log the stack-trace in real code!
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
+    # 0.0.0.0 makes the service reachable from Docker / other machines
     app.run(host="0.0.0.0", port=5000, debug=True)
