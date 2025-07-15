@@ -1,0 +1,93 @@
+import React, { Component } from "react";
+
+class AgentQuery extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      loading: false,
+      response: "",
+      error: "",
+    };
+  }
+
+  handleQuery = async () => {
+    this.setState({ loading: true, response: "", error: "" });
+
+    try {
+      const res = await fetch("http://localhost:5000/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: "summarize confluence and create jira", // or dynamic input
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("API request failed");
+      }
+
+      const data = await res.json();
+
+      this.setState({
+        loading: false,
+        response: data.result || data.final_output || "",
+      });
+    } catch (err) {
+      this.setState({
+        loading: false,
+        error: err.message || "Something went wrong",
+      });
+    }
+  };
+
+  render() {
+    const { loading, response, error } = this.state;
+
+    return (
+      <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+        <h2>Agent: Confluence → Jira Summary</h2>
+
+        <button
+          onClick={this.handleQuery}
+          disabled={loading}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: "#007bff",
+            color: "white",
+            border: "none",
+            borderRadius: "5px",
+            cursor: "pointer",
+            marginBottom: "20px",
+          }}
+        >
+          {loading ? "Processing..." : "Run Agent"}
+        </button>
+
+        {error && <p style={{ color: "red" }}>{error}</p>}
+
+        {response && (
+          <div
+            style={{
+              backgroundColor: "#f9f9f9",
+              padding: "15px",
+              whiteSpace: "pre-wrap", // to handle \n properly
+              borderRadius: "8px",
+              border: "1px solid #ccc",
+              maxHeight: "60vh",
+              overflowY: "auto",
+            }}
+            dangerouslySetInnerHTML={{
+              __html: response
+                .replace(/\n/g, "<br/>")
+                .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>"), // handle markdown **bold**
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+}
+
+export default AgentQuery;
