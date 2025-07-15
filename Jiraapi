@@ -1,0 +1,28 @@
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from your_agent_module import agent  # where your ADK agent is initialized
+
+app = FastAPI()
+
+# CORS for frontend connection
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Restrict this in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class QueryRequest(BaseModel):
+    query: str
+
+@app.post("/query")
+async def handle_query(request: QueryRequest):
+    result = agent.run(request.query)
+    
+    return {
+        "query": request.query,
+        "response_summary": result.get("summary"),
+        "raw_response": result.get("raw", ""),
+    }
