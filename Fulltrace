@@ -1,0 +1,42 @@
+async def find_related_incidents():
+    try:
+        incident_session_id = "xyz"
+        await session_service.create_session(
+            app_name=confjira_agent.name,
+            user_id=session_user_id,
+            session_id=incident_session_id,
+            state={}
+        )
+
+        full_trace = []
+        final_response = ""
+
+        async for event in runner.run_async(
+            user_id=session_user_id,
+            session_id=incident_session_id,
+            new_message=user_content
+        ):
+            if event.event_type == "tool_use":
+                tool_name = event.content.tool_name
+                tool_output = event.content.output
+                full_trace.append({
+                    "type": "tool",
+                    "tool": tool_name,
+                    "output": tool_output,
+                })
+
+            elif event.is_final_response():
+                final_response = event.content.parts[0].text
+                full_trace.append({
+                    "type": "final",
+                    "output": final_response
+                })
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)})
+
+    return jsonify({
+        "final_output": final_response,
+        "trace": full_trace
+    })
